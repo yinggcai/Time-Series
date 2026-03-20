@@ -1,0 +1,1 @@
+In this project we will analyse the trend and patterns in the sentiment score (mood) in I-dle or previously known as (G)I-dle’s lyrics. I-dle, formerly known as (G)I-dle, is a South Korean girl group formed by Cube Entertainment in 2018. The project data is a excel spreadsheet containing all their timestamped lyrics from Lrclib and Lyricstranslation.
