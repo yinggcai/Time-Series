@@ -1,0 +1,145 @@
+---
+title: "MTH6139 Time Series" 
+subtitle: "Coursework 1: I-dle / (G)I-dle Lyrics Sentiment Score Over Years" 
+author: "Ying Cai" 
+date: "Spring Term 2026" 
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab 
+    highlight: tango
+---
+
+```{r, echo=FALSE}
+# This code will display the QMUL logo at the top right of the page
+# Do not change this code
+htmltools::img(src = knitr::image_uri("images/QMlogo.png"),
+               alt = 'logo',
+               style = 'position:absolute; top:0; right:0; padding:10px; width:20%;')
+```
+
+
+# Introduction
+
+In this project we will analyse the trend and patterns in the sentiment score (mood) in I-dle or previously known as (G)I-dle's lyrics. I-dle, formerly known as (G)I-dle, is a South Korean girl group formed by Cube Entertainment in 2018. The project data is a excel spreadsheet containing all their timestamped lyrics from Lrclib and Lyricstranslation. I've manually collected the dataset and cleaned it to ensure that all lyrics are in English and that no lines of lyrics are missing.
+
+
+# Time Series
+
+Started off by installing and loading all the packages we will need into R Studio. In this project, readxl, syuzhet, dplyr, prophet and zoo packages will be used.
+
+```{r,echo="TRUE",message=FALSE}
+library(readxl)
+library(dplyr)
+library(syuzhet)
+library(prophet)
+library(zoo)
+```
+
+Importing the excel data with the timestamped lyrics into R and storing it as a data frame using the read_excel function.
+
+```{r}
+Timestamp<-read_excel("Data/I-dle_Timestamp_Lyrics.xlsx")
+```
+
+Filtering is required here to filter out any empty rows of data, by only keeping the rows where data exists in the Lyrics column.
+
+```{r}
+Timestamp<-Timestamp%>%
+    filter(!is.na(Lyrics)&Lyrics!="")
+```
+
+Next, I used the get_sentiment function to calculate the sentiment scores (mood) for each line of lyrics. Here I've chosen to use the method "afinn", where "afinn" is a method for scoring sentiments. As it runs through large data much faster than the method "bing", which was the method I've experimented with previously.
+
+```{r}
+Timestamp$sentiment<-get_sentiment(Timestamp$Lyrics,method="afinn")
+```
+
+Grouping the data by their year of release, and calculating the average sentiment scores for each year, whilst ignoring any missing data. The data was then sorted in chronological order from 2018 to 2025, aligned with their average sentiment score.
+
+```{r}
+Yearly_Sentiment_Score<-Timestamp %>%
+    group_by(Year) %>%
+    summarise(Sentiment_Score=mean(sentiment, na.rm=TRUE)) %>%
+    arrange(Year)
+
+Yearly_Sentiment_Score
+```
+
+Here the time series plot shows how the sentiment scores (mood) change over the years in I-dle / (G)I-dle albums.
+
+```{r}
+plot(Yearly_Sentiment_Score$Year, Yearly_Sentiment_Score$Sentiment_Score, 
+    type="o", main="Mood Score Over I-dle/(G)I-dle Albums",
+    xlab="Year", ylab="Sentiment Score(Mood)")
+```
+
+In the plot, we notice that in 2019 to 2020 there is quite a significant drop in the sentiment scores. During this period the members were participating in Mnet's Queendom, facing high pressure and public scrutiny. The darker tone in their songs reflects their experience with competition, stress and the need to prove themselves (after the success of their debut of their first mini album "I Am").
+
+From 2021 to 2022, the sentiment scores drops again. In this period, the mix of defiance and vulnerability in their songs reflects personal growth and coping with changes. During this period, one of the members faced public controversy and had to leave the group, which impacted the group emotionally.
+
+In the period 2023 to 2024 the sentiment scores lowers again. The album "I Sway" was the last album released before the group contract coming to an end. The whole album was quite melancholic and wistful, with sadness of the upcoming disbanding of the group.
+
+The sentiment scores reached the highest in 2025, with the group announcing a new contract and comeback under the name I_dle. The new album "We are" leans into confidence, self worth and emotional resilience, resulting in higher sentiment scores.
+
+
+# Data Frame
+
+To set up the time series as a data frame for the prophet function, I've assigned the two columns in Yearly_Sentiment_Score to time column "ds" and data column "y". 
+
+```{r}
+Idle_Sentiment_Score<-data.frame(ds=Yearly_Sentiment_Score$Year, y=Yearly_Sentiment_Score$Sentiment_Score)
+
+Idle_Sentiment_Score
+```
+
+To convert the data frame to a vector of dates, I used the yearmon() function in the zoo package. However since I've cleaned the data and the time series is in years, here I can just assign the values accordingly.
+
+```{r}
+Idle_Sentiment_Score$ds<-as.yearmon(Idle_Sentiment_Score$ds)
+Idle_Sentiment_Score$y<-Idle_Sentiment_Score$y
+```
+
+
+# Meta Prophet
+
+For this analysis, I used Meta Prophet to forecast yearly time series data, capturing long term trends.
+
+```{r}
+Sentiment_score_forecast_model=prophet(Idle_Sentiment_Score)
+Sentiment_score_forecast_model
+```
+
+The forecast timelines is accomplished with function make_future_dataframe(), for which the function will forecast the next 3 years (3 period in frequency of years). I've chosen to forecast only the next 3 years, because the new contract with the group will end in 2028.
+
+```{r}
+Next_three_years=make_future_dataframe(Sentiment_score_forecast_model,3, freq="year")
+Next_three_years
+```
+
+The prediction function will predict the forecast values for the forecast timelines, in this case, it will predict the sentiment scores of their songs for the next 3 year.
+
+```{r}
+Sentiment_score_predictions=predict(Sentiment_score_forecast_model,Next_three_years)
+Sentiment_score_predictions
+```
+
+Here the forecast plot shows the prediction in sentiment scores in the next 3 years in I-dle / (G)I-dle albums.
+
+```{r}
+plot(Sentiment_score_forecast_model, Sentiment_score_predictions)
+```
+
+The black dots represents the actual sentiment scores from 2018 to 2025. We see that the actual yearly data shows fluctuation with increase and decrease. The blue line is the forecast trend generated by Meta Prophet, representing the expected sentiment scores for the next 3 years. According to the model, we would expected a steady decreasing trend in the sentiment scores from 2025 to 2028. The blue shaded area around the trend line represents the model's uncertainty interval, showing where the actual values are likely to fall. The interval is quite wide suggesting more uncertainty in prediction of the period 2026 to 2028. The sentiment score drops the lowest in 2028 (in the period 2026 to 2028), which aligns with the disbanding of the new contract in 2028.
+
+
+# Conclusion
+
+With the analysis of the sentiment scores over the years of I-dle / (G)I_dle albums. I've noticed that the sentiment scores of each year is influenced strongly by their emotions, knitting into the lyrics of their songs. The forecast trend indicated an overall decreasing trend, this offers insight possibilities of evolving themes and artistic direction.
+
+
+# References
+
+LRCLIB: <https://lrclib.net/>
+Lyricstranslate: <https://lyricstranslate.com/en/all-songs/2050525>
